@@ -1,6 +1,6 @@
 // Service worker: guarda solo la "cáscara" de la app para que abra rápido y sea instalable.
 // Los datos viven en Apps Script y siempre se piden en vivo (nunca se cachean).
-const V = "ef-v2";
+const V = "ef-v3";
 const ARCHIVOS = ["./", "./index.html", "./config.js", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(V).then(c => c.addAll(ARCHIVOS)).then(() => self.skipWaiting())); });
 self.addEventListener("activate", e => {
