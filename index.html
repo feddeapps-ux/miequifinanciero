@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mi EquiFinanciero</title>
+<meta name="theme-color" content="#1A0712">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="EquiFinanciero">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+  html,body{margin:0;height:100%;background:#1A0712;color:#fff;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden}
+  #marco{position:fixed;inset:0;padding-top:env(safe-area-inset-top,0px);box-sizing:border-box;background:#1A0712;display:flex;flex-direction:column}
+  iframe{width:100%;flex:1;min-height:0;border:0;display:block;background:#1A0712}
+  #banner{display:none;flex:none;align-items:center;gap:10px;padding:8px 10px;background:#2E0E25;border-bottom:1px solid rgba(217,150,215,.35);font-size:13px;line-height:1.3}
+  #banner img{width:36px;height:36px;border-radius:9px;flex:none}
+  #banner span{flex:1;color:#F3D9EA}#banner b{color:#fff}
+  #bI{display:none;border:0;border-radius:12px;padding:10px 14px;background:linear-gradient(135deg,#8C143E,#5B21B6);color:#fff;font:600 14px system-ui}
+  #bX{width:34px;height:34px;border:0;border-radius:50%;background:rgba(255,255,255,.12);color:#fff;font-size:18px;flex:none}
+  #splash{position:fixed;inset:0;z-index:5;background:#1A0712;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;transition:opacity .5s}
+  #splash.fuera{opacity:0;pointer-events:none}
+  #splash img{width:96px;height:96px}
+  #splash p{margin:0;color:#BE93B3;font-size:14px}
+  #err{display:none;position:fixed;inset:0;z-index:9;background:#1A0712;padding:32px;box-sizing:border-box;align-content:center;text-align:center;line-height:1.5}
+  #err button{margin-top:16px;padding:12px 22px;border:0;border-radius:14px;background:#8C143E;color:#fff;font-size:16px}
+</style>
+</head>
+<body>
+<div id="splash"><img src="icon-192.png" alt="Mi EquiFinanciero"><p>Ordenando tus cuentas…</p></div>
+<div id="err"><h2>No pudimos abrir la app</h2><p id="errTxt"></p><button onclick="location.reload()">Reintentar</button></div>
+<div id="marco"><div id="banner"><img src="icon-192.png" alt=""><span id="bTxt"></span><button id="bI">Instalar</button><button id="bX" aria-label="Cerrar">×</button></div><iframe id="f" title="Mi EquiFinanciero" allow="clipboard-write; clipboard-read; camera; microphone; fullscreen; web-share; publickey-credentials-get" referrerpolicy="no-referrer-when-downgrade"></iframe></div>
+<script src="config.js"></script>
+<script>
+(function () {
+  "use strict";
+  var CFG = window.EF_CONFIG || {};
+  var K_SES = "EF_SHELL_SESION_V1", K_NONCE = "EF_G_NONCE", K_TOK = "EF_G_TOKEN";
+  var $ = function (id) { return document.getElementById(id); };
+  var OK_ORIGEN = /^https:\/\/([a-z0-9-]+\.)*(googleusercontent\.com|google\.com)$/i;
+
+  function mostrarError(t) { $("errTxt").textContent = t; $("err").style.display = "block"; $("splash").classList.add("fuera"); }
+  function leer(k) { try { return JSON.parse(localStorage.getItem(k) || "null"); } catch (e) { return null; } }
+  function guardar(k, v) { try { if (v) localStorage.setItem(k, JSON.stringify(v)); else localStorage.removeItem(k); } catch (e) {} }
+
+  if (!CFG.APP_URL || /PEGA_AQUI/.test(CFG.APP_URL)) { mostrarError("Falta configurar APP_URL en config.js."); return; }
+
+  // Volvemos de Google (inicio de sesión): el id_token llega en el hash
+  var tokenPendiente = null;
+  try {
+    if (location.hash.indexOf("id_token=") >= 0) {
+      var p = new URLSearchParams(location.hash.slice(1));
+      var idt = p.get("id_token"), esperado = sessionStorage.getItem(K_NONCE);
+      var nonceOk = false;
+      try { nonceOk = !!esperado && JSON.parse(atob(idt.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))).nonce === esperado; } catch (e) {}
+      if (idt && nonceOk) tokenPendiente = idt;
+      sessionStorage.removeItem(K_NONCE);
+      history.replaceState(null, "", location.pathname + location.search);
+    }
+  } catch (e) {}
+
+  var f = $("f");
+  var url = CFG.APP_URL;
+  try { var q = new URLSearchParams(location.search).get("page"); if (q) url += (url.indexOf("?") < 0 ? "?" : "&") + "page=" + encodeURIComponent(q); } catch (e) {}
+  f.src = url;
+
+  var splashT = setTimeout(quitarSplash, 9000);
+  function quitarSplash() { clearTimeout(splashT); $("splash").classList.add("fuera"); setTimeout(function () { var s = $("splash"); if (s) s.remove(); }, 600); }
+
+  function iniciarGoogle() {
+    var nonce = (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2) + Date.now());
+    sessionStorage.setItem(K_NONCE, nonce);
+    var a = new URLSearchParams({
+      client_id: CFG.GOOGLE_CLIENT_ID, redirect_uri: location.origin + location.pathname,
+      response_type: "id_token", scope: "openid email profile", nonce: nonce, prompt: "select_account"
+    });
+    location.href = "https://accounts.google.com/o/oauth2/v2/auth?" + a.toString();
+  }
+
+  window.addEventListener("message", function (e) {
+    if (!OK_ORIGEN.test(e.origin) || !e.data || typeof e.data !== "object") return;   // solo mensajes de Google/Apps Script
+    var d = e.data;
+    function responder(m) { try { e.source.postMessage(m, e.origin); } catch (x) {} }
+    if (d.fr === "hola") {
+      responder({ fr: "envoltorio", sesion: leer(K_SES) });
+      if (tokenPendiente) { var t = tokenPendiente; tokenPendiente = null; setTimeout(function () { responder({ fr: "googleToken", token: t }); }, 400); }
+    } else if (d.fr === "sesion") {
+      guardar(K_SES, d.sesion && d.sesion.token ? d.sesion : null);
+    } else if (d.fr === "listo") {
+      quitarSplash();
+    } else if (d.fr === "google") {
+      iniciarGoogle();
+    } else if (d.fr === "ir" && typeof d.url === "string" && /^(https:\/\/|tel:|mailto:)/i.test(d.url)) {
+      var w = null; try { w = window.open(d.url, "_blank", "noopener"); } catch (x) {}
+      if (!w) location.href = d.url;
+    }
+  });
+
+
+  // ---- Banner superior "Instalar" ----
+  var standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+  var ua = navigator.userAgent, evt = null, ban = $("banner"), bI = $("bI"), bT = $("bTxt");
+  var ios = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  function verBanner() { try { if (sessionStorage.getItem("efBan")) return; } catch (e) {} if (!standalone) ban.style.display = "flex"; }
+  $("bX").onclick = function () { ban.style.display = "none"; try { sessionStorage.setItem("efBan", "1"); } catch (e) {} };
+  if (!standalone) {
+    if (ios) { bT.innerHTML = "<b>Instala Mi EquiFinanciero</b>: toca Compartir y “Agregar a pantalla de inicio”."; verBanner(); }
+    else {
+      bT.innerHTML = "<b>Instala Mi EquiFinanciero</b> en tu teléfono y ábrela como una app.";
+      window.addEventListener("beforeinstallprompt", function (e) { e.preventDefault(); evt = e; bI.style.display = "block"; verBanner(); });
+      bI.onclick = function () { if (!evt) return; evt.prompt(); evt.userChoice.finally(function () { evt = null; ban.style.display = "none"; }); };
+      window.addEventListener("appinstalled", function () { ban.style.display = "none"; });
+      if (/Android/i.test(ua)) setTimeout(function () { if (ban.style.display !== "flex") { bT.innerHTML = "<b>Instala la app</b>: menú ⋮ → “Instalar aplicación”."; verBanner(); } }, 2500);
+    }
+  }
+
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(function () {});
+})();
+</script>
+</body>
+</html>
