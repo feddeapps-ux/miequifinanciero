@@ -15,7 +15,8 @@
 <style>
   html,body{margin:0;height:100%;background:#1A0712;color:#fff;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden}
   #marco{position:fixed;inset:0;padding-top:env(safe-area-inset-top,0px);box-sizing:border-box;background:#1A0712;display:flex;flex-direction:column}
-  iframe{width:100%;flex:1;min-height:0;border:0;display:block;background:#1A0712}
+  #caja{flex:1;min-height:0;position:relative;overflow:hidden}
+  iframe{position:absolute;left:0;top:0;width:100%;height:100%;border:0;display:block;background:#1A0712;transform-origin:0 0}
   #banner{display:none;flex:none;align-items:center;gap:10px;padding:8px 10px;background:#2E0E25;border-bottom:1px solid rgba(217,150,215,.35);font-size:13px;line-height:1.3}
   #banner img{width:36px;height:36px;border-radius:9px;flex:none}
   #banner span{flex:1;color:#F3D9EA}#banner b{color:#fff}
@@ -32,7 +33,7 @@
 <body>
 <div id="splash"><img src="icon-192.png" alt="Mi EquiFinanciero"><p>Ordenando tus cuentas…</p></div>
 <div id="err"><h2>No pudimos abrir la app</h2><p id="errTxt"></p><button onclick="location.reload()">Reintentar</button></div>
-<div id="marco"><div id="banner"><img src="icon-192.png" alt=""><span id="bTxt"></span><button id="bI">Instalar</button><button id="bX" aria-label="Cerrar">×</button></div><iframe id="f" title="Mi EquiFinanciero" allow="clipboard-write; clipboard-read; camera; microphone; fullscreen; web-share; publickey-credentials-get" referrerpolicy="no-referrer-when-downgrade"></iframe></div>
+<div id="marco"><div id="banner"><img src="icon-192.png" alt=""><span id="bTxt"></span><button id="bI">Instalar</button><button id="bX" aria-label="Cerrar">×</button></div><div id="caja"><iframe id="f" title="Mi EquiFinanciero" allow="clipboard-write; clipboard-read; camera; microphone; fullscreen; web-share; publickey-credentials-get" referrerpolicy="no-referrer-when-downgrade"></iframe></div></div>
 <script src="config.js"></script>
 <script>
 (function () {
@@ -66,6 +67,19 @@
   var url = CFG.APP_URL;
   try { var q = new URLSearchParams(location.search).get("page"); if (q) url += (url.indexOf("?") < 0 ? "?" : "&") + "page=" + encodeURIComponent(q); } catch (e) {}
   f.src = url;
+
+
+  // Dibuja la app con el mismo ancho de diseño que en Android (590 px) y la ajusta a la pantalla
+  var ANCHO = 590, caja = $("caja");
+  function ajustar() {
+    var cw = caja.clientWidth, ch = caja.clientHeight;
+    if (!cw || !ch) return;
+    if (cw >= ANCHO) { f.style.width = "100%"; f.style.height = "100%"; f.style.transform = "none"; return; }
+    var k = cw / ANCHO;
+    f.style.width = ANCHO + "px"; f.style.height = (ch / k) + "px"; f.style.transform = "scale(" + k + ")";
+  }
+  ajustar(); addEventListener("resize", ajustar); addEventListener("orientationchange", function () { setTimeout(ajustar, 200); });
+  if (window.ResizeObserver) new ResizeObserver(ajustar).observe(caja);
 
   var splashT = setTimeout(quitarSplash, 9000);
   function quitarSplash() { clearTimeout(splashT); $("splash").classList.add("fuera"); setTimeout(function () { var s = $("splash"); if (s) s.remove(); }, 600); }
